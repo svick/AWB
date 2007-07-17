@@ -1,6 +1,6 @@
 /*
 AWB Profiles
-Copyright (C) 2007 Sam Reed
+Copyright (C) 2007 Sam Reed, Stephen Kennedy
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -29,17 +29,14 @@ namespace WikiFunctions.AWBProfiles
 {
     public delegate void ProfileLoaded();
 
-    public partial class AWBProfilesForm : Form
+    public partial class AWBLogUploadProfilesForm : Form
     {
-        private WikiFunctions.Browser.WebControl Browser;
         AWBProfile AWBProfile = new AWBProfile();
-        private string CurrentSettingsProfile;
-        public event ProfileLoaded LoadProfile;
+        protected string CurrentSettingsProfile;
 
-        public AWBProfilesForm(WikiFunctions.Browser.WebControl browser)
+        public AWBLogUploadProfilesForm()
         {
             InitializeComponent();
-            this.Browser = browser;
         }
 
         private void AWBProfiles_Load(object sender, EventArgs e)
@@ -47,7 +44,7 @@ namespace WikiFunctions.AWBProfiles
             loadProfiles();
         }
 
-        int SelectedItem
+        protected int SelectedItem
         {
             get
             {
@@ -58,18 +55,9 @@ namespace WikiFunctions.AWBProfiles
 
         void UpdateUI()
         {
-            updateComponents(lvAccounts.Items.Count > 0);
-        }
-
-        void updateComponents(bool Which)
-        {
-            btnLogin.Enabled = Which;
-            btnDelete.Enabled = Which;
-
-            loginAsThisAccountToolStripMenuItem.Enabled = Which;
-            editThisAccountToolStripMenuItem.Enabled = Which;
-            changePasswordToolStripMenuItem.Enabled = Which;
-            deleteThisAccountToolStripMenuItem.Enabled = Which;
+            btnLogin.Enabled = btnDelete.Enabled = loginAsThisAccountToolStripMenuItem.Enabled = 
+                editThisAccountToolStripMenuItem.Enabled = changePasswordToolStripMenuItem.Enabled =
+                deleteThisAccountToolStripMenuItem.Enabled = (lvAccounts.SelectedItems.Count > 0);
         }
 
         private void loadProfiles()
@@ -85,58 +73,17 @@ namespace WikiFunctions.AWBProfiles
                 else
                     item.SubItems.Add("No");
                 item.SubItems.Add(profile.defaultsettings);
+                if (profile.useforupload)
+                    item.SubItems.Add("Yes");
+                else
+                    item.SubItems.Add("No");
                 item.SubItems.Add(profile.notes);
 
                 lvAccounts.Items.Add(item);
             }
 
             UpdateUI();
-
             WikiFunctions.Lists.ListViewColumnResize.resizeListView(lvAccounts);
-        }
-
-        private void btnLogin_Click(object sender, EventArgs e)
-        {
-            login();
-        }
-
-        private void loginAsThisAccountToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            login();
-        }
-
-        private void login()
-        {
-            if (SelectedItem >= 0)
-            {
-                if (lvAccounts.Items[lvAccounts.SelectedIndices[0]].SubItems[3].Text != "")
-                    CurrentSettingsProfile = lvAccounts.Items[lvAccounts.SelectedIndices[0]].SubItems[3].Text;
-                else
-                    CurrentSettingsProfile = "";
-
-                if (lvAccounts.Items[lvAccounts.SelectedIndices[0]].SubItems[2].Text == "Yes")
-                {//Get 'Saved' Password
-                    browserLogin(AWBProfiles.GetPassword(int.Parse(lvAccounts.Items[lvAccounts.SelectedIndices[0]].Text)));
-                }
-                else
-                {//Get Password from User
-                    UserPassword password = new UserPassword();
-                    password.SetText = "Enter password for " + lvAccounts.Items[lvAccounts.SelectedIndices[0]].SubItems[1].Text;
-
-                    if (password.ShowDialog() == DialogResult.OK)
-                        browserLogin(password.GetPassword);
-                    else
-                        return;
-                }
-
-                LoadProfile();
-            }
-        }
-
-        private void browserLogin(string Password)
-        {
-            Browser.Login(lvAccounts.Items[lvAccounts.SelectedIndices[0]].SubItems[1].Text, Password);
-            Variables.MainForm.CheckStatus(true);
         }
 
         private void btnAdd_Click(object sender, EventArgs e)
@@ -182,18 +129,29 @@ namespace WikiFunctions.AWBProfiles
 
         private void changePasswordToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            UserPassword password = new UserPassword();
-            password.SetText = "Set password for: " + lvAccounts.Items[lvAccounts.SelectedIndices[0]].SubItems[1].Text;
+			try
+			{
+	            UserPassword password = new UserPassword();
+	            password.SetText = "Set password for: " + lvAccounts.Items[lvAccounts.SelectedIndices[0]].SubItems[1].Text;
 
-            if (password.ShowDialog() == DialogResult.OK)
-                AWBProfiles.SetPassword(int.Parse(lvAccounts.Items[lvAccounts.SelectedIndices[0]].Text), password.GetPassword);
+	            if (password.ShowDialog() == DialogResult.OK)
+	                AWBProfiles.SetPassword(int.Parse(lvAccounts.Items[lvAccounts.SelectedIndices[0]].Text), password.GetPassword);
+			}
+			finally
+			{
+				loadProfiles();
+			}
         }
 
         private void editThisAccountToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            AWBProfileAdd add = new AWBProfileAdd(AWBProfiles.GetProfile(int.Parse(lvAccounts.Items[lvAccounts.SelectedIndices[0]].Text)));
-            if (add.ShowDialog() == DialogResult.Yes)
-                loadProfiles();
+			try
+			{
+	            AWBProfileAdd add = new AWBProfileAdd(AWBProfiles.GetProfile(int.Parse(lvAccounts.Items[lvAccounts.SelectedIndices[0]].Text)));
+	            if (add.ShowDialog() == DialogResult.Yes)
+	                loadProfiles();
+			}
+			catch { }
         }
 
         private void btnExit_Click(object sender, EventArgs e)
@@ -202,14 +160,19 @@ namespace WikiFunctions.AWBProfiles
             Dispose();
         }
 
-        private void lvAccounts_DoubleClick(object sender, EventArgs e)
-        {
-            login();
-        }
-
         public string SettingsToLoad
         {
             get { return CurrentSettingsProfile; }
+        }
+
+        private void lvAccounts_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            UpdateUI();
+        }
+
+        protected virtual void lvAccounts_DoubleClick(object sender, EventArgs e)
+        {
+            editThisAccountToolStripMenuItem_Click(sender, e);
         }
     }
 }

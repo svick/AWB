@@ -72,11 +72,12 @@ namespace WikiFunctions.Logging
             Tools.OpenArticleHistoryInBrowser(mArticle);
         }
 
-        public ListViewItem AddAndDateStamp(ListView ListView)
+        public void AddAndDateStamp(ListView ListView)
         {
-            ListViewItem item = ListView.Items.Insert(0, this);
-            item.SubItems.Add(DateTime.Now.ToString());
-            return item;
+            ListViewSubItem DateStamp = new ListViewSubItem();
+            DateStamp.Text = DateTime.Now.ToString();
+
+            ListView.Items.Insert(0, this).SubItems.Insert(1, DateStamp);
         }
 
         public string Output(LogFileType LogFileType)
@@ -219,6 +220,12 @@ namespace WikiFunctions.Logging
             base.SubItems.Add(SkipReason);
             WriteLine(SkipReason, SkippedBy);
             mSkipped = true;
+        }
+
+        // disable access to underlying Items property to stop Reedy Boy accessing it ;)
+        public new System.Windows.Forms.ListViewItem.ListViewSubItemCollection SubItems
+        {
+            get { throw new NotImplementedException("The SubItems property should not be accessed directly"); }
         }
     }
 }

@@ -152,6 +152,9 @@ namespace AutoWikiBrowser
                     Variables.User.UserNameChanged += UpdateUserName;
                     Variables.User.BotStatusChanged += UpdateBotStatus;
                     Variables.User.AdminStatusChanged += UpdateAdminStatus;
+                    Variables.User.WikiStatusChanged += UpdateWikiStatus;
+
+                    LoggingCategoryTextBox.TextChanged += loggingSettings1.WeHaveUnappliedChanges;
 
                     Variables.User.webBrowserLogin.DocumentCompleted += web4Completed;
                     Variables.User.webBrowserLogin.Navigating += web4Starting;
@@ -238,7 +241,7 @@ namespace AutoWikiBrowser
 
         #region Properties
 
-        ArticleEx stredittingarticle; // = new ArticleWithLogging("");
+        ArticleEx stredittingarticle; // = new ArticleWithLogging(""); 
         internal ArticleEx TheArticle
         {
             get { return stredittingarticle; }
@@ -445,7 +448,7 @@ namespace AutoWikiBrowser
                 else
                     webBrowserEdit.Busy = true;
 
-                TheArticle = new ArticleEx(listMaker1.SelectedArticle());
+                TheArticle = new ArticleEx(listMaker1.SelectedArticle().Name);
                 NewHistory();
 
                 if (!Tools.IsValidTitle(TheArticle.Name))
@@ -466,6 +469,14 @@ namespace AutoWikiBrowser
                 Tools.WriteDebug(this.Name, "Start() error: " + ex.Message);
                 StartDelayedRestartTimer();
             }
+            
+            if (GlobalObjects.MyTrace.StoppedWithConfigError)
+            {
+                try
+                { GlobalObjects.MyTrace.ValidateUploadProfile(); }
+                catch (Exception ex)
+                { GlobalObjects.MyTrace.ConfigError(ex); }
+            }
         }
 
         private void CaseWasLoad()
@@ -482,12 +493,12 @@ namespace AutoWikiBrowser
 
             string strTemp = webBrowserEdit.GetArticleText();
 
-            this.Text = "AutoWikiBrowser" + SettingsFile + " - " + TheArticle.Name;
+            this.Text = "AutoWikiBrowser " + SettingsFile + " - " + TheArticle.Name;
 
             //check for redirect
             if (bypassRedirectsToolStripMenuItem.Checked && Tools.IsRedirect(strTemp) && !PageReload)
             {
-                Article Redirect = new Article(Tools.RedirectTarget(strTemp));
+                ArticleEx Redirect = new ArticleEx(Tools.RedirectTarget(strTemp));
 
                 if (Redirect.Name == TheArticle.Name)
                 {//ignore recursive redirects
@@ -496,7 +507,7 @@ namespace AutoWikiBrowser
                 }
 
                 listMaker1.ReplaceArticle(TheArticle, Redirect);
-                TheArticle = new ArticleEx(Redirect);
+                TheArticle = new ArticleEx(Redirect.Name);
 
                 webBrowserEdit.LoadEditPage(Redirect.Name);
                 return;
@@ -774,8 +785,7 @@ namespace AutoWikiBrowser
             sameArticleNudges = 0;
             if (tabControl2.SelectedTab == tpHistory)
                 tabControl2.SelectedTab = tpEdit;
-            //HACK:
-            LogControl1.AddLog(TheArticle);
+            LogControl1.AddLog(false, TheArticle.LogListener);
 
             if (listMaker1.Count == 0)
                 if (AutoSaveEditBoxEnabled)
@@ -805,7 +815,7 @@ namespace AutoWikiBrowser
                 NudgeTimer.Stop();
                 listMaker1.Remove(TheArticle);
                 sameArticleNudges = 0;
-                LogControl1.AddLog(TheArticle);
+                LogControl1.AddLog(true, TheArticle.LogListener);
                 retries = 0;
                 Start();
             }
@@ -813,9 +823,32 @@ namespace AutoWikiBrowser
             { MessageBox.Show(ex.Message); }
         }
 
+        //private void SkipPage(string reason)
+        //{
+        //    TheArticle.Skip(reason);
+
+        //    SkipPageReasonAlreadyProvided();
+        //}
+
         private void SkipPage(string reason)
         {
-            TheArticle.Skip(reason);
+            switch (reason)
+            {
+                case "user":
+                    TheArticle.Trace.UserSkipped();
+                    break;
+
+                case "plugin":
+                    TheArticle.Trace.PluginSkipped();
+                    break;
+
+                case "":
+                    break;
+
+                default:
+                    TheArticle.Trace.AWBSkipped(reason);
+                    break;
+            }
 
             SkipPageReasonAlreadyProvided();
         }
@@ -837,7 +870,7 @@ namespace AutoWikiBrowser
                 if (!ignoreNoBotsToolStripMenuItem.Checked &&
                     !Parsers.CheckNoBots(TheArticle.ArticleText, Variables.User.Name))
                 {
-                    TheArticle.Skip("Restricted by {{bots}}/{{nobots}}");
+                    TheArticle.AWBSkip("Bot Edits not Allowed");
                     return;
                 }
 
@@ -876,9 +909,10 @@ namespace AutoWikiBrowser
                 if (cmboCategorise.SelectedIndex != 0)
                 {
                     TheArticle.Categorisation((WikiFunctions.Options.CategorisationOptions)
-                        cmboCategorise.SelectedIndex, parsers, chkSkipNoCatChange.Checked, txtNewCategory.Text,
-                        txtNewCategory2.Text);
+                        cmboCategorise.SelectedIndex, parsers, chkSkipNoCatChange.Checked, txtNewCategory.Text.Trim(),
+                        txtNewCategory2.Text.Trim());
                     if (TheArticle.SkipArticle) return;
+                    else if (!chkGeneralFixes.Checked) TheArticle.AWBChangeArticleText("Fix categories", parsers.FixCategories(TheArticle.ArticleText), true);
                 }
 
                 if (chkFindandReplace.Checked && !findAndReplace.AfterOtherFixes)
@@ -982,7 +1016,7 @@ namespace AutoWikiBrowser
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
-                TheArticle.Skip("Exception: " + ex.Message);
+                TheArticle.Trace.AWBSkipped("Error");
             }
         }
 
@@ -1221,12 +1255,8 @@ font-size: 150%;'>No changes</h2><p>Press the ""Ignore"" button below to skip to
         {
             if (webBrowserEdit.Document.Body.InnerHtml.Contains("wpMinoredit"))
             {
-                if (markAllAsMinorToolStripMenuItem.Checked)
-                    webBrowserEdit.SetMinor(true);
-                if (addAllToWatchlistToolStripMenuItem.Checked)
-                    webBrowserEdit.SetWatch(true);
-                if (!addAllToWatchlistToolStripMenuItem.Checked && bOverrideWatchlist)
-                    webBrowserEdit.SetWatch(false);
+                webBrowserEdit.SetMinor(markAllAsMinorToolStripMenuItem.Checked);
+                webBrowserEdit.SetWatch(addAllToWatchlistToolStripMenuItem.Checked, bOverrideWatchlist);
                 webBrowserEdit.SetSummary(MakeSummary());
             }
         }
@@ -1296,8 +1326,10 @@ font-size: 150%;'>No changes</h2><p>Press the ""Ignore"" button below to skip to
         }
 
         private void UpdateAdminStatus(object sender, EventArgs e)
-        {
-        }
+        { }
+
+        private void UpdateWikiStatus(object sender, EventArgs e)
+        { }
 
         private void chkAutoMode_CheckedChanged(object sender, EventArgs e)
         {
@@ -3127,7 +3159,7 @@ font-size: 150%;'>No changes</h2><p>Press the ""Ignore"" button below to skip to
             CheckBox IAutoWikiBrowser.AutoTagCheckBox { get { return chkAutoTagger; } }
             ToolStripMenuItem IAutoWikiBrowser.HelpToolStripMenuItem { get { return helpToolStripMenuItem; } }
             TextBox IAutoWikiBrowser.EditBox { get { return txtEdit; } }
-            TextBox IAutoWikiBrowser.CategoryTextBox { get { return CategoryTextBox; } }
+            TextBox IAutoWikiBrowser.CategoryTextBox { get { return LoggingCategoryTextBox; } }
             Form IAutoWikiBrowser.Form { get { return this; } }
             ToolStripMenuItem IAutoWikiBrowser.PluginsToolStripMenuItem { get { return pluginsToolStripMenuItem; } }
             WikiFunctions.Controls.Lists.ListMaker IAutoWikiBrowser.ListMaker { get { return listMaker1; } }
@@ -3142,8 +3174,10 @@ font-size: 150%;'>No changes</h2><p>Press the ""Ignore"" button below to skip to
             string IAutoWikiBrowser.AWBVersionString { get { return Program.VersionString; } }
             string IAutoWikiBrowser.WikiFunctionsVersionString { get { return Tools.VersionString; } }
             string IAutoWikiBrowser.WikiDiffVersionString { get { return WikiDiff.Version; } }
-            void IAutoWikiBrowser.AddLogItem(ArticleEx article) 
-                { LogControl1.AddLog(article); }
+            /* void IAutoWikiBrowser.AddLogItem(ArticleEx article) //
+                { LogControl1.AddLog(article); } */
+            void IAutoWikiBrowser.AddLogItem(bool Skipped, AWBLogListener LogListener)
+            { LogControl1.AddLog(Skipped, LogListener); }
             void IAutoWikiBrowser.TurnOffLogging() { GlobalObjects.MyTrace.TurnOffLogging(); }
 
         // "Events":
@@ -3398,22 +3432,22 @@ font-size: 150%;'>No changes</h2><p>Press the ""Ignore"" button below to skip to
 
         private void toolStripMenuItemCategoryCut_Click(object sender, EventArgs e)
         {
-            CategoryTextBox.Cut();
+            LoggingCategoryTextBox.Cut();
         }
 
         private void toolStripMenuItemCategoryCopy_Click(object sender, EventArgs e)
         {
-            CategoryTextBox.Copy();
+            LoggingCategoryTextBox.Copy();
         }
 
         private void toolStripMenuItemCategoryPaste_Click(object sender, EventArgs e)
         {
-            CategoryTextBox.Paste();
+            LoggingCategoryTextBox.Paste();
         }
 
         private void toolStripMenuItemCategoryClear_Click(object sender, EventArgs e)
         {
-            CategoryTextBox.Text = "";
+            LoggingCategoryTextBox.Text = "";
         }
 
         private void profilesToolStripMenuItem_Click(object sender, EventArgs e)
@@ -3436,6 +3470,7 @@ font-size: 150%;'>No changes</h2><p>Press the ""Ignore"" button below to skip to
         private void loadProfileSettings()
         {
             LoadPrefs(profiles.SettingsToLoad);
+            CheckStatus(true);
         }
     }
 }

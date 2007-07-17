@@ -174,9 +174,7 @@ namespace WikiFunctions.Controls.Lists
             listMaker1.Clear();
             
             foreach (string str in lbBoth.Items)
-            {
                 listMaker1.Add(str);
-            }
         }
 
         private void openInBrowserToolStripMenuItem_Click(object sender, EventArgs e)
@@ -187,14 +185,30 @@ namespace WikiFunctions.Controls.Lists
 
         private void openInBrowserToolStripMenuItem1_Click(object sender, EventArgs e)
         {
-            foreach (String article in lbOnly1.SelectedItems)
+            foreach (String article in MenuItemOwner(sender).SelectedItems)
                 Tools.OpenArticleInBrowser(article);
         }
 
-        private void openInBrowserToolStripMenuItem2_Click(object sender, EventArgs e)
+        private void copyToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            foreach (String article in lbOnly2.SelectedItems)
-                Tools.OpenArticleInBrowser(article);
+            Tools.Copy(lbBoth);
+        }
+
+        private void copySelectedToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Tools.Copy(MenuItemOwner(sender));
+        }
+
+        private ListBox MenuItemOwner(object sender)
+        {
+            try { return ((ListBox)((ContextMenuStrip)sender).SourceControl); }
+            catch
+            {
+                try
+                { return (ListBox)(((ContextMenuStrip)((ToolStripMenuItem)sender).Owner).SourceControl); }
+                catch
+                { throw; }
+            }
         }
     }
 }

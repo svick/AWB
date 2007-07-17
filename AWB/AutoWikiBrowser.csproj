@@ -70,7 +70,7 @@
     <Compile Include="AboutBox.Designer.cs">
       <DependentUpon>AboutBox.cs</DependentUpon>
     </Compile>
-    <Compile Include="ArticleWithLogging.cs" />
+    <Compile Include="Article.cs" />
     <Compile Include="CustomModule.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -95,13 +95,13 @@
     <Compile Include="Help.Designer.cs">
       <DependentUpon>Help.cs</DependentUpon>
     </Compile>
-    <Compile Include="MyTrace.cs" />
     <Compile Include="LoggingSettings.cs">
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="LoggingSettings.Designer.cs">
       <DependentUpon>LoggingSettings.cs</DependentUpon>
     </Compile>
+    <Compile Include="MyTrace.cs" />
     <Compile Include="Tools.cs" />
     <Compile Include="Main.cs">
       <SubType>Form</SubType>
@@ -143,13 +143,13 @@
       <SubType>Designer</SubType>
       <DependentUpon>Help.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="LoggingSettings.resx">
+      <DependentUpon>LoggingSettings.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
     <EmbeddedResource Include="Main.resx">
       <SubType>Designer</SubType>
       <DependentUpon>Main.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="LoggingSettings.resx">
-      <SubType>Designer</SubType>
-      <DependentUpon>LoggingSettings.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Preferences.resx">
       <SubType>Designer</SubType>

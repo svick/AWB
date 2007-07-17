@@ -33,6 +33,7 @@ namespace WikiFunctions.AWBProfiles
     {
         //AWBProfile AWBProfile = new AWBProfile();
         private int editid;
+        private bool justLoading;
 
         public AWBProfileAdd()
         {
@@ -48,14 +49,21 @@ namespace WikiFunctions.AWBProfiles
         public AWBProfileAdd(AWBProfile profile)
         {
             InitializeComponent();
+            justLoading = true;
+
             editid = profile.id;
 
-            txtUsername.Text = AWBProfiles.Decrypt(profile.Username);
-            txtPassword.Text = AWBProfiles.Decrypt(profile.Password);
+            txtUsername.Text = profile.Username;
+            txtPassword.Text = profile.Password;
             txtPath.Text = profile.defaultsettings;
+            chkUseForUpload.Checked = profile.useforupload;
             txtNotes.Text = profile.notes;
 
+            if (txtPath.Text != "")
+                chkDefaultSettings.Checked = true;
+
             this.Text = "Edit Profile";
+            justLoading = false;
         }
 
         private void chkSavePassword_CheckedChanged(object sender, EventArgs e)
@@ -65,17 +73,14 @@ namespace WikiFunctions.AWBProfiles
 
         private void AWBProfileAdd_Load(object sender, EventArgs e)
         {
-            openDefaultFile.InitialDirectory = Application.StartupPath;
+            openDefaultFile.InitialDirectory = System.Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         }
 
         private void chkDefaultSettings_CheckedChanged(object sender, EventArgs e)
         {
             txtPath.Enabled = chkDefaultSettings.Checked;
-            if (chkDefaultSettings.Checked)
-            {
-                if (openDefaultFile.ShowDialog() == DialogResult.OK)
-                    txtPath.Text = openDefaultFile.FileName;
-            }
+            if (!justLoading && chkDefaultSettings.Checked && (openDefaultFile.ShowDialog() == DialogResult.OK))
+                txtPath.Text = openDefaultFile.FileName;
         }
 
         private void btnSave_Click(object sender, EventArgs e)
@@ -89,6 +94,13 @@ namespace WikiFunctions.AWBProfiles
                 profile.Username = txtUsername.Text;
                 profile.Password = txtPassword.Text;
                 profile.defaultsettings = txtPath.Text;
+
+                int idUpload = AWBProfiles.GetIDOfUploadAccount();
+
+                if (chkUseForUpload.Checked && idUpload != -1 && idUpload != editid)
+                    AWBProfiles.SetOtherAccountsAsNotForUpload();
+
+                profile.useforupload = chkUseForUpload.Checked;
                 profile.notes = txtNotes.Text;
 
                 if (editid == -1)

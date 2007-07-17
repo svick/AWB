@@ -21,16 +21,19 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Microsoft.VisualBasic.Devices;
+using System.Windows.Forms;
 
 namespace WikiFunctions.AWBProfiles
 {
     public class AWBProfile
     {
-        public int id; // TODO: use properties
+        public int id;
         public string defaultsettings, notes;
 
-        protected string mUsername;
-        private string mPassword; // or store in RAM encrypted
+        private string mUsername = "";
+        private string mPassword = "";
+
+        public bool useforupload;
 
         public string Username
         {
@@ -57,9 +60,16 @@ namespace WikiFunctions.AWBProfiles
         /// </summary>
         /// <param name="text">String to be encrypted</param>
         /// <returns>Encrypted String</returns>
-        public static string Encrypt(string text)
+        private static string Encrypt(string text)
         {
-            return Encryption.RijndaelSimple.Encrypt(text, PassPhrase, Salt, "SHA1", 2, IV16Chars, 256);
+            try
+            {
+                if (text != "")
+                    return Encryption.RijndaelSimple.Encrypt(text, PassPhrase, Salt, "SHA1", 2, IV16Chars, 256);
+                else
+                    return text;
+            }
+            catch { return text; }
         }
 
         /// <summary>
@@ -67,9 +77,16 @@ namespace WikiFunctions.AWBProfiles
         /// </summary>
         /// <param name="text">String to be decrypted</param>
         /// <returns>Decrypted String</returns>
-        public static string Decrypt(string text)
+        private static string Decrypt(string text)
         {
-            return Encryption.RijndaelSimple.Decrypt(text, PassPhrase, Salt, "SHA1", 2, IV16Chars, 256);
+            try
+            {
+                if (text != "")
+                    return Encryption.RijndaelSimple.Decrypt(text, PassPhrase, Salt, "SHA1", 2, IV16Chars, 256);
+                else
+                    return text;
+            }
+            catch { return text; }
         }
 
         /// <summary>
@@ -78,28 +95,10 @@ namespace WikiFunctions.AWBProfiles
         /// <returns>List of Profiles</returns>
         public static List<AWBProfile> GetProfiles()
         {
-            Computer myComputer = new Computer();
             List<AWBProfile> profiles = new List<AWBProfile>();
-
-            List<int> ProfileIDs = GetProfileIDs();
-            foreach (int id in ProfileIDs)
+            foreach (int id in GetProfileIDs())
             {
-                try
-                {
-                    AWBProfile prof = new AWBProfile();
-                    prof.id = id;
-                    prof.Username = myComputer.Registry.GetValue("HKEY_CURRENT_USER\\" + RegKey + "\\" + id, "User", "").ToString();
-                    if (prof.Username != "")
-                        prof.Username = Decrypt(prof.Username);
-                    prof.Password = myComputer.Registry.GetValue("HKEY_CURRENT_USER\\" + RegKey + "\\" + id, "Pass", "").ToString();
-                    if (prof.Password != "")
-                        prof.Password = Decrypt(prof.Password);
-                    prof.defaultsettings = myComputer.Registry.GetValue("HKEY_CURRENT_USER\\" + RegKey + "\\" + id, "Settings", "").ToString();
-                    prof.notes = myComputer.Registry.GetValue("HKEY_CURRENT_USER\\" + RegKey + "\\" + id, "Notes", "").ToString();
-
-                    profiles.Add(prof);
-                }
-                catch { }
+                profiles.Add(GetProfile(id));
             }
             return profiles;
         }
@@ -112,19 +111,94 @@ namespace WikiFunctions.AWBProfiles
         public static AWBProfile GetProfile(int id)
         {
             AWBProfile prof = new AWBProfile();
+            Computer myComputer = new Computer();
+
+            prof.id = id;
+            try { prof.Username = Decrypt(myComputer.Registry.GetValue("HKEY_CURRENT_USER\\" + RegKey + "\\" + id, "User", "").ToString()); }
+            catch
+            {
+                if (MessageBox.Show("Profile corrupt. Would you like to delete this profile?", "Delete corrupt profile?", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                    DeleteProfile(id);
+
+                throw new Exception("");
+            }
+
+            // one try...catch without a resume has the effect that all remaining code in the try block is skipped
+            // WHY are we just ignoring these errors anyway? There should be a wrapper around Registry.GetValue perhaps?
+            try { prof.Password = Decrypt(myComputer.Registry.GetValue("HKEY_CURRENT_USER\\" + RegKey + "\\" + id, "Pass", "").ToString()); }
+            catch { prof.Password = ""; }
+            finally
+            {
+                prof.defaultsettings = myComputer.Registry.GetValue("HKEY_CURRENT_USER\\" + RegKey + "\\" + id, "Settings", "").ToString();
+                try { prof.useforupload = bool.Parse(myComputer.Registry.GetValue("HKEY_CURRENT_USER\\" + RegKey + "\\" + id, "UseForUpload", "").ToString()); }
+                catch { prof.useforupload = false; }
+                prof.notes = myComputer.Registry.GetValue("HKEY_CURRENT_USER\\" + RegKey + "\\" + id, "Notes", "").ToString();
+            }
+            return prof;
+        }
+
+        /// <summary>
+        /// Return (or create and return) an AWBProfile for the account used for log uploading
+        /// </summary>
+        /// <returns>The Profile. Throw an error or return null if the user declines to create a profile?</returns>
+        public static AWBProfile GetProfileForLogUploading(IWin32Window owner)
+        {
+            int IDOfUploadAccount = GetIDOfUploadAccount();
+            AWBProfile retval;
+            AWBLogUploadProfilesForm profiles;
+
+            if (IDOfUploadAccount == -1)
+            {
+                if (MessageBox.Show("Please select or add a Profile to use for log uploading",
+                    "Log uploading", MessageBoxButtons.OKCancel, MessageBoxIcon.Information)
+                    == DialogResult.OK)
+                {
+                    profiles = new AWBLogUploadProfilesForm();
+                    profiles.ShowDialog(owner);
+                    retval = GetProfileForLogUploading(owner);
+                }
+                else
+                    throw new System.Configuration.ConfigurationErrorsException("Log upload profile: User cancelled");
+            }
+            else
+                retval = GetProfile(IDOfUploadAccount);
+
+            if (retval.Password == "")
+            {
+                WikiFunctions.AWBProfiles.UserPassword password = new WikiFunctions.AWBProfiles.UserPassword();
+                password.SetText = "Enter password for " + retval.Username;
+                if (password.ShowDialog() == DialogResult.OK)
+                    retval.Password = password.GetPassword;
+            }
+            return retval;
+        }
+
+        /// <summary>
+        /// Returns the ID of the account set to be used to upload logs
+        /// </summary>
+        /// <returns>-1 if no Upload Profile found</returns>
+        public static int GetIDOfUploadAccount()
+        {
+            foreach (AWBProfile prof in GetProfiles())
+                if (prof.useforupload)
+                    return prof.id;
+            return -1;
+        }
+
+        /// <summary>
+        /// Sets all current accounts as not for upload, so the new account can be the upload account
+        /// </summary>
+        internal static void SetOtherAccountsAsNotForUpload()
+        {
             try
             {
-                Computer myComputer = new Computer();
-
-                prof.id = id;
-                prof.Username = Decrypt(myComputer.Registry.GetValue("HKEY_CURRENT_USER\\" + RegKey + "\\" + id, "User", "").ToString());
-                prof.Password = Decrypt(myComputer.Registry.GetValue("HKEY_CURRENT_USER\\" + RegKey + "\\" + id, "Pass", "").ToString());
-                prof.defaultsettings = myComputer.Registry.GetValue("HKEY_CURRENT_USER\\" + RegKey + "\\" + id, "Settings", "").ToString();
-                prof.notes = myComputer.Registry.GetValue("HKEY_CURRENT_USER\\" + RegKey + "\\" + id, "Notes", "").ToString();
-
-                return prof;
+                foreach (int id in GetProfileIDs())
+                {
+                    Microsoft.Win32.RegistryKey Key = new Computer().Registry.CurrentUser.OpenSubKey(RegKey + "\\" + id, true);
+                    Key.SetValue("UseForUpload", false);
+                }
             }
-            catch { return prof; }
+            catch { }
         }
 
         /// <summary>
@@ -144,10 +218,7 @@ namespace WikiFunctions.AWBProfiles
         /// <param name="password">Password</param>
         public static void SetPassword(int id, string password)
         {
-            if (password != "")
-                password = Encrypt(password);
-
-            SetProfilePassword(id, password);
+            SetProfilePassword(id, Encrypt(password));
         }
 
         /// <summary>
@@ -159,8 +230,7 @@ namespace WikiFunctions.AWBProfiles
         {
             try
             {
-                Microsoft.Win32.RegistryKey Key = new Computer().Registry.CurrentUser;
-                Key = Key.OpenSubKey(RegKey + "\\" + id, true);
+                Microsoft.Win32.RegistryKey Key = new Computer().Registry.CurrentUser.OpenSubKey(RegKey + "\\" + id, true);
                 Key.SetValue("Pass", password);
             }
             catch { }
@@ -172,21 +242,7 @@ namespace WikiFunctions.AWBProfiles
         /// <param name="profile">Profile Object of User</param>
         public static void AddProfile(AWBProfile profile)
         {
-            try
-            {
-                int id = GetFirstFreeID();
-
-                Microsoft.Win32.RegistryKey key =
-                    new Computer().Registry.CurrentUser.CreateSubKey(RegKey + "\\" + id);
-
-                key.SetValue("User", Encrypt(profile.Username));
-                if (profile.Password != "")
-                    key.SetValue("Pass", Encrypt(profile.Password));
-                else
-                    key.SetValue("Pass", "");
-                key.SetValue("Settings", profile.defaultsettings);
-                key.SetValue("Notes", profile.notes);
-            }
+            try { AddEditProfile(profile, new Computer().Registry.CurrentUser.CreateSubKey(RegKey + "\\" + GetFirstFreeID())); }
             catch { }
         }
 
@@ -196,20 +252,22 @@ namespace WikiFunctions.AWBProfiles
         /// <param name="profile">Profile Object of User</param>
         public static void EditProfile(AWBProfile profile)
         {
-            try
-            {
-                Microsoft.Win32.RegistryKey Key = new Computer().Registry.CurrentUser;
-                Key = Key.OpenSubKey(RegKey + "\\" + profile.id, true);
-
-                if (profile.Password != "")
-                    profile.Password = Encrypt(profile.Password);
-
-                Key.SetValue("User", profile.Username);
-                Key.SetValue("Pass", profile.Password);
-                Key.SetValue("Settings", profile.defaultsettings);
-                Key.SetValue("Notes", profile.notes);
-            }
+            try { AddEditProfile(profile, new Computer().Registry.CurrentUser.OpenSubKey(RegKey + "\\" + profile.id, true)); }
             catch { }
+        }
+
+        /// <summary>
+        /// Does the registry writing for add & edit profiles
+        /// </summary>
+        /// <param name="profile">Profile Object of User</param>
+        /// <param name="Key">Registry Key for Adding/Editing</param>
+        private static void AddEditProfile(AWBProfile profile, Microsoft.Win32.RegistryKey Key)
+        {
+            Key.SetValue("User", Encrypt(profile.Username));
+            Key.SetValue("Pass", Encrypt(profile.Password));
+            Key.SetValue("Settings", profile.defaultsettings);
+            Key.SetValue("UseForUpload", profile.useforupload);
+            Key.SetValue("Notes", profile.notes);
         }
 
         /// <summary>
@@ -218,8 +276,7 @@ namespace WikiFunctions.AWBProfiles
         /// <param name="id"></param>
         public static void DeleteProfile(int id)
         {
-            try
-            { Microsoft.Win32.Registry.CurrentUser.DeleteSubKey(RegKey + "\\" + id.ToString()); }
+            try { Microsoft.Win32.Registry.CurrentUser.DeleteSubKey(RegKey + "\\" + id.ToString()); }
             catch { }
         }
 
@@ -229,15 +286,8 @@ namespace WikiFunctions.AWBProfiles
         /// <returns>Number of Profiles</returns>
         private static int CountSubKeys()
         {
-            try
-            {
-                Microsoft.Win32.RegistryKey baseRegistryKey = new Computer().Registry.CurrentUser;
-                Microsoft.Win32.RegistryKey key2 = baseRegistryKey.OpenSubKey(RegKey);
-
-                return key2.SubKeyCount;
-            }
-            catch
-            { return 0; }
+            try { return new Computer().Registry.CurrentUser.OpenSubKey(RegKey).SubKeyCount; }
+            catch { return 0; }
         }
 
         /// <summary>
@@ -249,15 +299,8 @@ namespace WikiFunctions.AWBProfiles
             List<int> ProfileIDs = new List<int>();
             try
             {
-                Microsoft.Win32.RegistryKey baseRegistryKey = new Computer().Registry.CurrentUser;
-                Microsoft.Win32.RegistryKey key2 = baseRegistryKey.OpenSubKey(RegKey);
-
-                string[] profid = key2.GetSubKeyNames();
-
-                foreach (string id in profid)
-                {
+                foreach (string id in new Computer().Registry.CurrentUser.OpenSubKey(RegKey).GetSubKeyNames())
                     ProfileIDs.Add(int.Parse(id));
-                }
 
                 return ProfileIDs;
             }

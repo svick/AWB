@@ -30,207 +30,149 @@ using WikiFunctions.Parse;
 
 namespace WikiFunctions
 {
-    class FauxListener : IAWBTraceListener
-    {
-        public void Close() { }
-        public void Flush() { }
-        public void ProcessingArticle(string FullArticleTitle, Namespaces NS) { }
-        public void SkippedArticle(string SkippedBy, string Reason) { }
-        public void SkippedArticleBadTag(string SkippedBy, string FullArticleTitle, Namespaces NS) { }
-        public void SkippedArticleRedlink(string SkippedBy, string FullArticleTitle, Namespaces NS) { }
-        public void Write(string Text) { }
-        public void WriteArticleActionLine(string Line, string PluginName) { }
-        public void WriteArticleActionLine(string Line, string PluginName, bool VerboseOnly) { }
-        public void WriteBulletedLine(string Line, bool Bold, bool VerboseOnly) { }
-        public void WriteBulletedLine(string Line, bool Bold, bool VerboseOnly, bool DateStamp) { }
-        public void WriteComment(string Line) { }
-        public void WriteCommentAndNewLine(string Line) { }
-        public void WriteLine(string Line) { }
-        public void WriteTemplateAdded(string Template, string PluginName) { }
-        public bool Uploadable { get { return false; } }
-
-        public void AWBSkipped(string Reason) { }
-        public void UserSkipped() { }
-        public void PluginSkipped() { }
-    }
-
-    public enum SkippedBy
-    {
-        AWB, User, Plugin
-    };
-
     /// <summary>
     /// A class which represents a wiki article
     /// </summary>
-    public class Article : IArticleSimple
+    public class Article : ProcessArticleEventArgs, IArticleSimple
     {
         protected int mNameSpaceKey;
         protected string mName = "";
-
-        public Article()
-        { }
-
-        public Article(string Name)
-        {
-            mName = Name;
-            mNameSpaceKey = Tools.CalculateNS(mName);
-        }
-
-        public Article(string Name, int NameSpaceKey)
-        {
-            mName = Name;
-            mNameSpaceKey = NameSpaceKey;
-        }
-
-        #region Serialisable properties
-        /// <summary>
-        /// The full name of the article
-        /// </summary>
-        public string Name
-        { get { return mName; } set { mName = value; } }
-
-        /// <summary>
-        /// The namespace of the article
-        /// </summary>
-        [XmlAttribute]
-        public int NameSpaceKey
-        { get { return mNameSpaceKey; } set { mNameSpaceKey = value; } }
-        #endregion
-
-        #region Overrides
-        public override string ToString()
-        {
-            return mName;
-        }
-
-        public override int GetHashCode()
-        {
-            return mName.GetHashCode();
-        }
-
-        public override bool Equals(object obj)
-        {
-            if (obj == null || !(obj is Article)) return false;
-            return mName == (obj as Article).mName;
-            /*
-            if (obj.GetHashCode() == this.GetHashCode())
-                return true;
-            else
-                return false;
-            */
-        }
-        #endregion
-
-#region Non-serialisable properties
-        /// <summary>
-        /// The name of the article, encoded ready for use in a URL
-        /// </summary>
-        public string URLEncodedName
-        { get { return Tools.WikiEncode(mName); } }
-#endregion
-    }
-
-    public class ArticleEx : Article, ProcessArticleEventArgs
-    {
         protected string mEditSummary = "";
         protected string mSavedSummary = "";
+        protected AWBLogListener mAWBLogListener;
         protected string mArticleText = "";
         protected string mOriginalArticleText = "";
         protected string mPluginEditSummary = "";
         protected bool mPluginSkip;
-        protected bool mSkip;
-        protected string mSkipReason = "";
-        protected SkippedBy mSkippedBy;  
 
-#region Constructors
-        public ArticleEx()
-            : base()
-        {
-        }
+        public virtual IAWBTraceListener Trace
+        { get { return mAWBLogListener; } }
 
-        public ArticleEx(string Name)
-            : base(Name)
-        {
-        }
+        #region Constructors
+            public Article()
+            { }
 
-        public ArticleEx(string Name, int NameSpaceKey)
-            : base(Name, NameSpaceKey)
-        {
-        }
+            public Article(string mName)
+            {
+                this.mName = mName;
+                this.mNameSpaceKey = Tools.CalculateNS(mName);
+                this.EditSummary = "";
+            }
 
-        public ArticleEx(Article a)
-            :base(a.Name)
-        {
-        }
+            public Article(string mName, int mNameSpaceKey)
+            {
+                this.mName = mName;
+                this.mNameSpaceKey = mNameSpaceKey;
+                this.EditSummary = "";
+            }
 
+            public virtual AWBLogListener InitialiseLogListener()
+            {
+                InitLog();
+                return mAWBLogListener;
+            }
+
+            public AWBLogListener InitialiseLogListener(string name, TraceManager TraceManager)
+            {
+                // Initialise a Log Listener and add it to a TraceManager collection
+                InitLog();
+                TraceManager.AddListener(name, mAWBLogListener);
+                return mAWBLogListener;
+            }
+
+            private void InitLog()
+            { mAWBLogListener = new Logging.AWBLogListener(this.mName); }
         #endregion
 
-        /// <summary>
-        /// The text of the article. This is deliberately readonly; set using methods
-        /// </summary>
-        public string ArticleText
-        { get { return mArticleText.Trim(); } } 
+        #region Serialisable properties
+            /// <summary>
+            /// The full name of the article
+            /// </summary>
+            public string Name
+            { get { return mName; } set { mName = value; } }
 
-        /// <summary>
-        /// Article text before this program manipulated it
-        /// </summary>
-        [XmlIgnore]
-        public string OriginalArticleText
-        { 
-            get { return mOriginalArticleText.Trim(); }
-            set { mOriginalArticleText = value; mArticleText = value; }
-        }
+            /// <summary>
+            /// The namespace of the article
+            /// </summary>
+            [XmlAttribute]
+            public int NameSpaceKey
+            { get { return mNameSpaceKey; } set { mNameSpaceKey = value; } }
+        #endregion
 
-        /// <summary>
-        /// Edit summary proposed for article
-        /// </summary>
-        [XmlIgnore]
-        public string EditSummary
-        { get { return mEditSummary; } set { mEditSummary = value; } }
+        #region Non-serialisable properties
+            // Read-write properties should be marked with the [XmlIgnore] attribute
 
-        /// <summary>
-        ///  Last stored EditSummary before reset
-        /// </summary>
-        public string SavedSummary
-        { get { return mSavedSummary; } }
+            /// <summary>
+            /// AWBLogListener object representing a log entry for the underlying article
+            /// </summary>
+            [XmlIgnore]
+            public AWBLogListener LogListener
+            { get { return mAWBLogListener; } } //set { mAWBLogListener = value; } }
 
-        /// <summary>
-        /// Returns true if the article is a stub (a very short article or an article tagged with a "stub template")
-        /// </summary>
-        public bool IsStub { get { return Parsers.IsStub(mArticleText); } }
+            /// <summary>
+            /// The name of the article, encoded ready for use in a URL
+            /// </summary>
+            public string URLEncodedName
+            { get { return Tools.WikiEncode(mName); } }
 
-        /// <summary>
-        /// Returns true if the article contains a stub template
-        /// </summary>
-        public bool HasStubTemplate
-        { get { return Parsers.HasStubTemplate(mArticleText); } }
+            /// <summary>
+            /// The text of the article. This is deliberately readonly; set using methods
+            /// </summary>
+            public string ArticleText
+            { get { return mArticleText.Trim(); } } 
 
-        /// <summary>
-        /// Returns true if the article contains an infobox
-        /// </summary>
-        public bool HasInfoBox
-        { get { return Parsers.HasInfobox(mArticleText); } }
+            /// <summary>
+            /// Article text before this program manipulated it
+            /// </summary>
+            [XmlIgnore]
+            public string OriginalArticleText
+            { get { return mOriginalArticleText.Trim(); } set { mOriginalArticleText = value; mArticleText = value; } }
 
-        /// <summary>
-        /// Returns true if the article contains a template showing it as "in use"
-        /// </summary>
-        public bool IsInUse
-        { get { return Parsers.IsInUse(mArticleText); } }
-    
-        /// <summary>
-        /// Returns true if the article should be skipped; check after each call to a worker member. See AWB main.cs.
-        /// </summary>
-        public bool SkipArticle
-        { get { return mSkip; } }
+            /// <summary>
+            /// Edit summary proposed for article
+            /// </summary>
+            [XmlIgnore]
+            public string EditSummary
+            { get { return mEditSummary; } set { mEditSummary = value; } }
 
-        public SkippedBy SkippedBy
-        { get { return mSkippedBy; } }
+            /// <summary>
+            ///  Last stored EditSummary before reset
+            /// </summary>
+            public string SavedSummary
+            { get { return mSavedSummary; } }
 
-        public string SkipReason
-        { get { return mSkipReason; } }
-    
-        public bool CanDoGeneralFixes
-        { get { return (NameSpaceKey == 0 || NameSpaceKey == 14 || Name.Contains("Sandbox")); } }
+            /// <summary>
+            /// Returns true if the article is a stub (a very short article or an article tagged with a "stub template")
+            /// </summary>
+            public bool IsStub { get { return Parsers.IsStub(mArticleText); } }
+
+            /// <summary>
+            /// Returns true if the article contains a stub template
+            /// </summary>
+            public bool HasStubTemplate
+            { get { return Parsers.HasStubTemplate(mArticleText); } }
+
+            /// <summary>
+            /// Returns true if the article contains an infobox
+            /// </summary>
+            public bool HasInfoBox
+            { get { return Parsers.HasInfobox(mArticleText); } }
+
+            /// <summary>
+            /// Returns true if the article contains a template showing it as "in use"
+            /// </summary>
+            public bool IsInUse
+            { get { return Parsers.IsInUse(mArticleText); } }
+        
+            /// <summary>
+            /// Returns true if the article should be skipped; check after each call to a worker member. See AWB main.cs.
+            /// </summary>
+            public bool SkipArticle
+            { get { return mAWBLogListener.Skipped; } }
+        
+            public bool CanDoGeneralFixes
+            { get { return (NameSpaceKey == 0 || NameSpaceKey == 14 || Name.Contains("Sandbox")); } }
+        #endregion
 
         #region AWB worker subroutines
             /// <summary>
@@ -243,34 +185,12 @@ namespace WikiFunctions
             }
 
             /// <summary>
-            /// 
+            /// AWB skips the article; passed through to the underlying AWBLogListener object
             /// </summary>
-            /// <param name="reason"></param>
-            public void Skip(string reason)
-            {
-                mSkip = true;
-                
-                switch (reason)
-                {
-                    case "user":
-                        mSkippedBy = SkippedBy.User;
-                        break;
-
-                    case "plugin":
-                        mSkippedBy = SkippedBy.Plugin;
-                        break;
-
-                    case "":
-                        throw new Exception("Empty skip reason");
-                        //break;
-
-                    default:
-                        mSkippedBy = SkippedBy.AWB;
-                        mSkipReason = reason;
-                        break;
-                }
-            }
-
+            /// <param name="reason">The reason for skipping</param>
+            public void AWBSkip(string reason)
+            { Trace.AWBSkipped(reason); }
+        
             /// <summary>
             /// Send the article to a plugin for processing
             /// </summary>
@@ -282,8 +202,8 @@ namespace WikiFunctions
 
                 if (!mPluginSkip)
                 {
-                    PluginChangeArticleText(strTemp);
-                    AppendPluginEditSummary();
+                    this.PluginChangeArticleText(strTemp);
+                    this.AppendPluginEditSummary();
                 }
             }
 
@@ -298,7 +218,7 @@ namespace WikiFunctions
                 string strTemp = parsers.Unicodify(mArticleText, out NoChange);
 
                 if (SkipIfNoChange && NoChange)
-                    Skip("No Unicodification");
+                    Trace.AWBSkipped("No Unicodification");
                 else if (!NoChange)
                     this.AWBChangeArticleText("Article Unicodified", strTemp, false);
             }
@@ -338,7 +258,7 @@ namespace WikiFunctions
                 }
 
                 if (NoChange && SkipIfNoChange)
-                    Skip("No Image Changed");
+                    Trace.AWBSkipped("No Image Changed");
                 else if (!NoChange)
                     this.AWBChangeArticleText("Image replacement applied", strTemp, false);
             }
@@ -383,7 +303,7 @@ namespace WikiFunctions
                 }
 
                 if (NoChange && SkipIfNoChange)
-                    Skip("No Category Changed");
+                    Trace.AWBSkipped("No Category Changed");
                 else if (!NoChange)
                     this.AWBChangeArticleText(action, strTemp, false);
             }
@@ -421,10 +341,10 @@ namespace WikiFunctions
                 strTemp = substTemplates.SubstituteTemplates(strTemp, mName); // TODO: Possible bug, this was "articleTitle" not "Name"
 
                 if (SkipIfNoChange && (testText == strTemp)) // NoChange
-                    Skip("No Find And Replace Changes");
+                    Trace.AWBSkipped("No Find And Replace Changes");
                 else
                 {
-                    AWBChangeArticleText("Find and replace applied" + tmpEditSummary,
+                    this.AWBChangeArticleText("Find and replace applied" + tmpEditSummary,
                         strTemp.Replace("\n", "\r\n"), false);
                     EditSummary += tmpEditSummary;
                 }
@@ -441,10 +361,10 @@ namespace WikiFunctions
                 string strTemp = RegexTypos.PerformTypoFixes(mArticleText, out NoChange, out mPluginEditSummary);
 
                 if (NoChange && SkipIfNoChange)
-                    Skip("No typo fixes");
+                    Trace.AWBSkipped("No typo fixes");
                 else if (!NoChange)
                 {
-                    AWBChangeArticleText(mPluginEditSummary, strTemp, false);
+                    this.AWBChangeArticleText(mPluginEditSummary, strTemp, false);
                     AppendPluginEditSummary();
                 }
             }
@@ -460,10 +380,10 @@ namespace WikiFunctions
                 string strTemp = parsers.Tagger(mArticleText, mName, out NoChange, ref tmpEditSummary);
 
                 if (SkipIfNoChange && NoChange)
-                    Skip("No Tag changed");
+                    Trace.AWBSkipped("No Tag changed");
                 else if (!NoChange)
                 {
-                    AWBChangeArticleText("Auto tagger changes applied" + tmpEditSummary, strTemp, false);
+                    this.AWBChangeArticleText("Auto tagger changes applied" + tmpEditSummary, strTemp, false);
                     EditSummary += tmpEditSummary;
                 }
             }
@@ -484,9 +404,9 @@ namespace WikiFunctions
                     strTemp = parsers.LivingPeople(strTemp, out NoChange);
                     strTemp = parsers.FixHeadings(strTemp, mName, out NoChange);
                     if (SkipIfNoChange && NoChange)
-                        Skip("No header errors");
+                        Trace.AWBSkipped("No header errors");
                     else if (!NoChange)
-                        AWBChangeArticleText("Fixed header errors", strTemp, true);
+                        this.AWBChangeArticleText("Fixed header errors", strTemp, true);
                 }
             }
 
@@ -504,7 +424,7 @@ namespace WikiFunctions
                 string strTemp = parsers.ChangeToDefaultSort(mArticleText, mName, out NoChange);
 
                 if (SkipIfNoChange && NoChange)
-                    Skip("No DefaultSort Added");
+                    Trace.AWBSkipped("No DefaultSort Added");
                 else if (!NoChange)
                     this.AWBChangeArticleText("DefaultSort Added", strTemp, true);
             }
@@ -520,7 +440,7 @@ namespace WikiFunctions
                 bool NoChange;
                 string strTemp = parsers.FixLinks(mArticleText, out NoChange);
                 if (NoChange && SkipIfNoChange)
-                    Skip("No bad links");
+                    Trace.AWBSkipped("No bad links");
                 else if (!NoChange)
                     this.AWBChangeArticleText("Fixed links", strTemp, false);
             }
@@ -535,7 +455,7 @@ namespace WikiFunctions
                 bool NoChange;
                 string strTemp = parsers.BulletExternalLinks(mArticleText, out NoChange);
                 if (SkipIfNoChange && NoChange)
-                    Skip("No missing bulleted links");
+                    Trace.AWBSkipped("No missing bulleted links");
                 else if (!NoChange)
                     this.AWBChangeArticleText("Bulleted external links", strTemp, false);
             }
@@ -550,7 +470,7 @@ namespace WikiFunctions
                 bool NoChange;
                 string strTemp = parsers.BoldTitle(mArticleText, mName, out NoChange);
                 if (SkipIfNoChange && NoChange)
-                    Skip("No Titles to embolden");
+                    Trace.AWBSkipped("No Titles to embolden");
                 else if (!NoChange)
                     this.AWBChangeArticleText("Emboldened titles", strTemp, false);
             }
@@ -622,7 +542,7 @@ namespace WikiFunctions
                 if (df.Abort) return false;
 
                 if (NoChange && SkipIfNoChange)
-                    Skip("No disambiguation");
+                    Trace.AWBSkipped("No disambiguation");
                 else if (!NoChange)
                     this.AWBChangeArticleText("Disambiguated " + DabLinkText, strTemp, false);
 
@@ -643,7 +563,7 @@ namespace WikiFunctions
                 if (checkIfChanged && newText == mArticleText) return;
 
                 mArticleText = newText;
-                //mAWBLogListener.WriteLine(reason, changedBy);
+                mAWBLogListener.WriteLine(reason, changedBy);
             }
 
             /// <summary>
@@ -686,6 +606,49 @@ namespace WikiFunctions
             public void UnHideMoreText(HideText RemoveText)
             { mArticleText = RemoveText.AddBackMore(mArticleText); }
 
+        /// <summary>
+        /// returns 
+        /// </summary>
+        /// <param name="title"></param>
+        /// <returns></returns>
+        public static string CanonicalizeTitle(string title)
+        {
+            // visible parts of links may contain crap we shouldn't modify, such as
+            // refs and external links
+            if (title.Contains("[") || title.Contains("{")) return title;
+
+            string s = Parsers.CanonicalizeTitle(title);
+            if (Variables.UnderscoredTitles.Contains(new Article(Tools.TurnFirstToUpper(s))))
+            {
+                return System.Web.HttpUtility.UrlDecode(title.Replace("+", "%2B"))
+                    .Trim(new char[] { '_' });
+            }
+            else return s;
+        }
+        #endregion
+
+        #region Overrides
+            public override string ToString()
+            {
+                return mName;
+            }
+
+            public override int GetHashCode()
+            {
+                return mName.GetHashCode();
+            }
+
+            public override bool Equals(object obj)
+            {
+                if (obj == null || !(obj is Article)) return false;
+                return mName == (obj as Article).mName;
+                /*
+                if (obj.GetHashCode() == this.GetHashCode())
+                    return true;
+                else
+                    return false;
+                */
+            }
         #endregion
 
         #region Interfaces
@@ -702,7 +665,9 @@ namespace WikiFunctions
             bool ProcessArticleEventArgs.Skip
             { get { return mPluginSkip; } set { mPluginSkip = value; } }
 
-            Article Article { get { return this; } }
+            // and NamespaceKey
+
+            Article IArticleSimple.Article { get { return this; } }
         #endregion
 
         public static IArticleSimple GetReadOnlyArticle(string Title)
@@ -718,12 +683,12 @@ namespace WikiFunctions
     // TODO: Primarily for use with IsStub() etc, by plugin
     public interface IArticleSimple
     {
-        //Article Article { get; }
+        Article Article { get; }
         string Name { get; }
         int NameSpaceKey { get; }
-        //string ArticleText { get; }
-        //bool IsStub { get; }
-        //bool HasStubTemplate { get; }
-        //bool HasInfoBox { get; }
+        string ArticleText { get; }
+        bool IsStub { get; }
+        bool HasStubTemplate { get; }
+        bool HasInfoBox { get; }
     }
 }

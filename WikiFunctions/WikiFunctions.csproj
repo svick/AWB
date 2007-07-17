@@ -32,6 +32,7 @@
   <ItemGroup>
     <Reference Include="Microsoft.VisualBasic" />
     <Reference Include="System" />
+    <Reference Include="System.configuration" />
     <Reference Include="System.Data" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Web" />
@@ -43,6 +44,18 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="AWBLogListener.cs" />
+    <Compile Include="AWBProfiles\AWBProfilesForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="AWBProfiles\AWBProfilesForm.Designer.cs">
+      <DependentUpon>AWBProfilesForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="AWBProfiles\AWBLogUploadProfilesForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="AWBProfiles\AWBLogUploadProfilesForm.designer.cs">
+      <DependentUpon>AWBLogUploadProfilesForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="AWBProfiles\AWBProfile.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -51,12 +64,6 @@
     </Compile>
     <Compile Include="AWBProfiles\AWBProfileAdd.Designer.cs">
       <DependentUpon>AWBProfileAdd.cs</DependentUpon>
-    </Compile>
-    <Compile Include="AWBProfiles\AWBProfiles.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="AWBProfiles\AWBProfiles.Designer.cs">
-      <DependentUpon>AWBProfiles.cs</DependentUpon>
     </Compile>
     <Compile Include="AWBProfiles\UserPassword.cs">
       <SubType>Form</SubType>
@@ -221,7 +228,9 @@
       <DependentUpon>TemplateParamRuleControl.cs</DependentUpon>
     </Compile>
     <Compile Include="ResourcesManager.cs" />
-    <Compile Include="SettingsClasses.cs" />
+    <Compile Include="SettingsClasses.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="specialFilter.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -264,12 +273,16 @@
     <Compile Include="WPEditor.cs" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="AWBProfiles\AWBProfileAdd.resx">
-      <DependentUpon>AWBProfileAdd.cs</DependentUpon>
+    <EmbeddedResource Include="AWBProfiles\AWBProfilesForm.resx">
+      <SubType>Designer</SubType>
+      <DependentUpon>AWBProfilesForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="AWBProfiles\AWBLogUploadProfilesForm.resx">
+      <DependentUpon>AWBLogUploadProfilesForm.cs</DependentUpon>
       <SubType>Designer</SubType>
     </EmbeddedResource>
-    <EmbeddedResource Include="AWBProfiles\AWBProfiles.resx">
-      <DependentUpon>AWBProfiles.cs</DependentUpon>
+    <EmbeddedResource Include="AWBProfiles\AWBProfileAdd.resx">
+      <DependentUpon>AWBProfileAdd.cs</DependentUpon>
       <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="AWBProfiles\UserPassword.resx">

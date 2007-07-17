@@ -34,12 +34,13 @@ namespace AutoWikiBrowser.Logging
     /// </summary>
     internal sealed class MyTrace : TraceManager, IAWBTraceListener
     {
-        private new Dictionary<string, IAWBTraceListener> Listeners = new Dictionary<string, IAWBTraceListener>();
+        //private new Dictionary<string, IAWBTraceListener> Listeners = new Dictionary<string, IAWBTraceListener>();
 
         private LoggingSettings LoggingSettings;
         private static string LogFolder = "";
         private int BusyCounter = 0;
         private bool mIsUploading = false;
+        private bool mStoppedWithConfigError;
 
         private const string conWiki = "Wiki";
         private const string conXHTML = "XHTML";
@@ -68,20 +69,28 @@ namespace AutoWikiBrowser.Logging
                         NewWikiTraceListener();
                     }
                 }
-                foreach (KeyValuePair<string, IAWBTraceListener> t in Listeners)
+                foreach (KeyValuePair<string, IMyTraceListener> t in Listeners)
                 {
                     t.Value.WriteBulletedLine(Variables.LoggingStartButtonClicked, true, false, true);
                 }
-                CheckWeHaveLogInDetails();
+                ValidateUploadProfile();
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                ConfigError(ex);
             }
+        }
+
+        internal void ConfigError(Exception ex)
+        {
+            MessageBox.Show(ex.Message);
+            mStoppedWithConfigError = true;
+            GlobalObjects.AWB.Stop(ApplicationName);
         }
 
         private void TraceUploadEventHandler(TraceListenerUploadableBase Sender, ref bool Success)
         {
+            ValidateUploadProfile();
             Success = base.UploadHandler(Sender, LoggingSettings.Settings.LogTitle, 
                 LoggingSettings.Settings.WikifiedCategory, LoggingSettings.Settings.GlobbedUploadLocation + "/" + 
                 Sender.PageName.Replace(LoggingSettings.Props.conUploadCategoryIsJobName, 
@@ -120,28 +129,36 @@ namespace AutoWikiBrowser.Logging
 
         // State:
         internal bool HaveOpenFile
-        {
-            get { return Listeners.Count > 0; }
-        }
+        { get { return Listeners.Count > 0; } }
 
         internal bool IsUploading
+        { get { return mIsUploading; } }
+
+        internal bool StoppedWithConfigError
+        { get { return mStoppedWithConfigError; } }
+
+        internal void ValidateUploadProfile()
         {
-            get { return mIsUploading; }
+            try
+            {
+                if (this.Uploadable)
+                {
+                    LoggingSettings.LoginDetails.AWBProfile =
+                        WikiFunctions.AWBProfiles.AWBProfiles.GetProfileForLogUploading(GlobalObjects.AWB.Form);
+
+                    if (!LoggingSettings.LoginDetails.IsSet)
+                        throw new System.Configuration.ConfigurationErrorsException("Error getting login details");
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new System.Configuration.ConfigurationErrorsException("Logging not properly configured", ex);
+            }
+
+            mStoppedWithConfigError = false;
         }
 
         // Private:
-        private void CheckWeHaveLogInDetails()
-        {
-            if (this.Uploadable && !LoggingSettings.LoginDetails.IsSet)
-            {
-                // TODO: This needs to be imported from plugin and fixed, but what about AWBProfiles? Encyryption? etc
-                //LoggingSettings.LoginDetails = new LoginForm().GetUsernamePassword;
-                //if (!LoggingSettings.LoginDetails.IsSet)
-                //{
-                //    throw new System.Configuration.ConfigurationErrorsException("Error getting login details");
-                //}
-            }
-        }
         private static string GetFilePrefix(string LogFolder)
         {
             return string.Format("{1}\\{0:MMM-d yyyy HHmm-ss.FF}", System.DateTime.Now, LogFolder);
@@ -153,9 +170,8 @@ namespace AutoWikiBrowser.Logging
         }
         private void NewWikiTraceListener()
         {
-            // TODO: fix and uncomment this
-            //AddListener(conWiki, new WikiTraceListener(GetFilePrefix(LoggingSettings.Settings.LogFolder) + 
-            //    " log.txt", LoggingSettings));
+            AddListener(conWiki, new WikiTraceListener(GetFilePrefix(LoggingSettings.Settings.LogFolder) + 
+                " log.txt", LoggingSettings));
         }
         private string GetFileNameFromActiveListener(string Key)
         {
@@ -234,7 +250,7 @@ namespace AutoWikiBrowser.Logging
             if (LoggingSettings.Settings.UploadYN && (BadPagesLogToUpload || WikiLogToUpload) && MessageBox.Show("Upload logs?", "Logging", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1) == DialogResult.Yes)
                 upload = true;
 
-            foreach (KeyValuePair<string, IAWBTraceListener> t in Listeners)
+            foreach (KeyValuePair<string, IMyTraceListener> t in Listeners)
             {
                 t.Value.WriteCommentAndNewLine("closing all logs");
                 if (t.Value.Uploadable)
@@ -264,25 +280,25 @@ namespace AutoWikiBrowser.Logging
         public void AWBSkipped(string Reason)
         {
             Busy();
-            foreach (KeyValuePair<string, IAWBTraceListener> Listener in Listeners)
+            foreach (KeyValuePair<string, IMyTraceListener> Listener in Listeners)
             {
-                Listener.Value.AWBSkipped(Reason);
+                ((IAWBTraceListener)Listener.Value).AWBSkipped(Reason);
             }
         }
         public void PluginSkipped()
         {
             Busy();
-            foreach (KeyValuePair<string, IAWBTraceListener> Listener in Listeners)
+            foreach (KeyValuePair<string, IMyTraceListener> Listener in Listeners)
             {
-                Listener.Value.PluginSkipped();
+                ((IAWBTraceListener)Listener.Value).PluginSkipped();
             }
         }
         public void UserSkipped()
         {
             Busy();
-            foreach (KeyValuePair<string, IAWBTraceListener> Listener in Listeners)
+            foreach (KeyValuePair<string, IMyTraceListener> Listener in Listeners)
             {
-                Listener.Value.UserSkipped();
+                ((IAWBTraceListener)Listener.Value).UserSkipped();
             }
         }
         public override void ProcessingArticle(string FullArticleTitle, WikiFunctions.Namespaces NS)
@@ -384,7 +400,7 @@ namespace AutoWikiBrowser.Logging
                     RemoveListenerAndReplaceWithSameType(conXHTML);
             }
 
-            CheckWeHaveLogInDetails();
+            ValidateUploadProfile();
         }
 
         // Trace listener child classes:
@@ -522,7 +538,7 @@ namespace AutoWikiBrowser.Logging
             Close(); LS.TurnOffLogging();
         }
 
-        internal static AWBLogListener InitialiseLogListener(ArticleEx Article)
+        internal static AWBLogListener InitialiseLogListener(ArticleEx Article) 
         { return null;/* Article.InitialiseLogListener("AWB", GlobalObjects.MyTrace);*/ }
         // TODO: At some point we need to *remove* the listener for the article ("AWB")
         // Plugin did it at the end of ProcessArticle(). We also do it, but a bit late, in AddListener().

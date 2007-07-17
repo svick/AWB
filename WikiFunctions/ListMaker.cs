@@ -244,7 +244,7 @@ namespace WikiFunctions.Controls.Lists
                     lblSourceSelect.Text = "What links to";
                     txtSelectSource.Enabled = true;
                     break;
-                case SourceType.WhatTranscludesHere:
+                case SourceType.WhatTranscludesPage:
                     lblSourceSelect.Text = "What embeds";
                     txtSelectSource.Enabled = true;
                     break;
@@ -254,6 +254,10 @@ namespace WikiFunctions.Controls.Lists
                     break;
                 case SourceType.ImagesOnPage:
                     lblSourceSelect.Text = "Images on";
+                    txtSelectSource.Enabled = true;
+                    break;
+                case SourceType.TransclusionsOnPage:
+                    lblSourceSelect.Text = "Transclusions on";
                     txtSelectSource.Enabled = true;
                     break;
                 case SourceType.TextFile:
@@ -748,7 +752,7 @@ namespace WikiFunctions.Controls.Lists
                     case SourceType.WhatLinksHere:
                         Add(GetLists.FromWhatLinksHere(false, strSource));
                         break;
-                    case SourceType.WhatTranscludesHere:
+                    case SourceType.WhatTranscludesPage:
                         Add(GetLists.FromWhatLinksHere(true, strSource));
                         break;
                     case SourceType.LinksOnPage:
@@ -757,7 +761,9 @@ namespace WikiFunctions.Controls.Lists
                     case SourceType.ImagesOnPage:
                         Add(GetLists.FromImagesOnPage(strSource));
                         break;
-                    //4 from text file
+                    case SourceType.TransclusionsOnPage:
+                        Add(GetLists.FromTransclusionsOnPage(strSource));
+                        break;
                     case SourceType.GoogleWikipedia:
                         Add(GetLists.FromGoogleSearch(strSource));
                         break;
@@ -770,8 +776,6 @@ namespace WikiFunctions.Controls.Lists
                     case SourceType.ImageFileLinks:
                         Add(GetLists.FromImageLinks(strSource));
                         break;
-                    //9 from datadump
-                    //10 from watchlist
                     case SourceType.WikiSearch:
                         Add(GetLists.FromWikiSearch(strSource));
                         break;
@@ -1057,28 +1061,13 @@ namespace WikiFunctions.Controls.Lists
 
         private void cutToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            ctrl_c();
+            Tools.Copy(lbArticles);
             RemoveSelectedArticle();
         }
 
         private void copyToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            ctrl_c();
-        }
-
-        private void ctrl_c()
-        {
-            try
-            {
-                string ClipboardData = "";
-                for (int i = 0; i < lbArticles.SelectedItems.Count; i++)
-                {
-                    ClipboardData = ClipboardData + "\r\n" + lbArticles.SelectedItems[i];
-                }
-                ClipboardData = ClipboardData.Substring(2);
-                Clipboard.SetDataObject(ClipboardData, true);
-            }
-            catch { }
+            Tools.Copy(lbArticles);
         }
 
         private void pasteToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1161,7 +1150,7 @@ namespace WikiFunctions.Controls.Lists
                 i++;
             }
 
-            MakeList(SourceType.WhatTranscludesHere, c);
+            MakeList(SourceType.WhatTranscludesPage, c);
         }
 
         private void fromLinksOnPageToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1252,5 +1241,5 @@ namespace WikiFunctions.Lists
 {
     //CategoryRecursive is enabled in debug builds only due to server load
     //it should always be the last item
-    public enum SourceType { None = -1, Category, WhatLinksHere, WhatTranscludesHere, LinksOnPage, ImagesOnPage, TextFile, GoogleWikipedia, UserContribs, SpecialPage, ImageFileLinks, DatabaseDump, MyWatchlist, WikiSearch, Redirects, CategoryRecursive }
+    public enum SourceType { None = -1, Category, WhatLinksHere, WhatTranscludesPage, LinksOnPage, ImagesOnPage, TransclusionsOnPage, TextFile, GoogleWikipedia, UserContribs, SpecialPage, ImageFileLinks, DatabaseDump, MyWatchlist, WikiSearch, Redirects, CategoryRecursive }
 }

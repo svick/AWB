@@ -88,7 +88,7 @@ namespace WikiFunctions.Plugin
         string WikiDiffVersionString { get; }
         void NotifyBalloon(string Message, ToolTipIcon Icon);
         int Nudges { get; }
-        void AddLogItem(ArticleEx article);
+        void AddLogItem(bool Skipped, AWBLogListener LogListener);
         void TurnOffLogging();
 
         void Start(IAWBPlugin sender);

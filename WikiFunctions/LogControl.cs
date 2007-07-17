@@ -51,19 +51,16 @@ namespace WikiFunctions.Logging
             resizeListView(lvSaved);
         }
 
-        public void AddLog(ArticleEx article)
+        public void AddLog(bool Skipped, AWBLogListener LogListener)
         {
-
-            if (article.SkipArticle)
+            if (Skipped)
             {
-                ListViewItem item = new AWBLogListener(article.Name).AddAndDateStamp(lvIgnored);
-                item.SubItems.Add(article.SkippedBy.ToString());
-                item.SubItems.Add(article.SkipReason);
+                LogListener.AddAndDateStamp(lvIgnored);
                 resizeListView(lvIgnored);
             }
             else
             {
-                ListViewItem item = new AWBLogListener(article.Name).AddAndDateStamp(lvSaved);
+                LogListener.AddAndDateStamp(lvSaved);
                 resizeListView(lvSaved);
             }
         }
@@ -264,29 +261,13 @@ namespace WikiFunctions.Logging
 
         private void cutToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            ctrl_c(sender);
+            Tools.Copy(MenuItemOwner(sender));
             removeselected(sender);
         }
 
         private void copyToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            ctrl_c(sender);
-        }
-
-        private void ctrl_c(object sender)
-        {
-            string ClipboardData = "";
-
-            foreach (ListViewItem a in MenuItemOwner(sender).SelectedItems)
-            {
-                string text = a.Text;
-
-                if (ClipboardData != "") ClipboardData += "\r\n";
-
-                ClipboardData += text;
-            }
-
-            Clipboard.SetDataObject(ClipboardData, true);
+            Tools.Copy(MenuItemOwner(sender));
         }
 
         private void removeselected(object sender)

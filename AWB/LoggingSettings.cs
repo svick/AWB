@@ -39,7 +39,7 @@ namespace AutoWikiBrowser
     internal sealed partial class LoggingSettings : UserControl
     {
         private bool mStartingUp;
-        internal UsernamePassword LoginDetails = new UsernamePassword();
+        internal UsernamePassword2 LoginDetails = new UsernamePassword2();
         private bool mInitialised;
         internal Props Settings = new Props();
 
@@ -47,7 +47,6 @@ namespace AutoWikiBrowser
         {
             mStartingUp = true;
             InitializeComponent();
-            //GlobalObjects.AWB.CategoryTextBox.TextChanged += this.WeHaveUnappliedChanges;
             mStartingUp = false;
         }
 
@@ -85,7 +84,7 @@ namespace AutoWikiBrowser
         }
 
         #region Settings
-        // TODO: Ought to be able to serialise the Props class? Ask Max/Mets
+        [Browsable(false)]
         public LoggingPrefs SerialisableSettings
         {
             get
@@ -95,6 +94,7 @@ namespace AutoWikiBrowser
                 prefs.LogVerbose = VerboseCheckBox.Checked;
                 prefs.LogWiki = WikiLogCheckBox.Checked;
                 prefs.LogXHTML = XHTMLLogCheckBox.Checked;
+                prefs.LogCategoryName = ((MainForm)ParentForm).LoggingCategoryTextBox.Text;
                 prefs.UploadJobName = UploadJobNameTextBox.Text;
                 prefs.UploadLocation = UploadLocationTextBox.Text;
                 prefs.UploadMaxLines = int.Parse(UploadMaxLinesControl.Value.ToString());
@@ -102,26 +102,28 @@ namespace AutoWikiBrowser
                 prefs.UploadToWikiProjects = UploadWikiProjectCheckBox.Checked;
                 prefs.UploadAddToWatchlist = UploadWatchlistCheckBox.Checked;
                 prefs.UploadYN = UploadCheckBox.Checked;
-                prefs.Category = UploadJobNameTextBox.Text;
-
                 return prefs;
             }
             set
             {
                 LoggingPrefs prefs = value;
 
-                FolderTextBox.Text = prefs.LogFolder;
-                VerboseCheckBox.Checked = prefs.LogVerbose;
-                WikiLogCheckBox.Checked = prefs.LogWiki;
-                XHTMLLogCheckBox.Checked = prefs.LogXHTML;
-                UploadJobNameTextBox.Text = prefs.UploadJobName;
-                UploadLocationTextBox.Text = prefs.UploadLocation;
-                UploadMaxLinesControl.Value = prefs.UploadMaxLines;
-                UploadOpenInBrowserCheckBox.Checked = prefs.UploadOpenInBrowser;
-                UploadWikiProjectCheckBox.Checked = prefs.UploadToWikiProjects;
-                UploadWatchlistCheckBox.Checked = prefs.UploadAddToWatchlist;
-                UploadCheckBox.Checked = prefs.UploadYN;
-                UploadJobNameTextBox.Text = prefs.Category;
+                try
+                {
+                    ((MainForm)ParentForm).LoggingCategoryTextBox.Text = prefs.LogCategoryName;
+                    FolderTextBox.Text = prefs.LogFolder;
+                    VerboseCheckBox.Checked = prefs.LogVerbose;
+                    WikiLogCheckBox.Checked = prefs.LogWiki;
+                    XHTMLLogCheckBox.Checked = prefs.LogXHTML;
+                    UploadJobNameTextBox.Text = prefs.UploadJobName;
+                    UploadLocationTextBox.Text = prefs.UploadLocation;
+                    UploadMaxLinesControl.Value = prefs.UploadMaxLines;
+                    UploadOpenInBrowserCheckBox.Checked = prefs.UploadOpenInBrowser;
+                    UploadWikiProjectCheckBox.Checked = prefs.UploadToWikiProjects;
+                    UploadWatchlistCheckBox.Checked = prefs.UploadAddToWatchlist;
+                    UploadCheckBox.Checked = prefs.UploadYN;
+                }
+                catch { }
             }
         }
         internal void Reset()
@@ -207,7 +209,7 @@ namespace AutoWikiBrowser
                 }
             }
         }
-        private void WeHaveUnappliedChanges(object sender, EventArgs e)
+        internal void WeHaveUnappliedChanges(object sender, EventArgs e)
         { WeHaveUnappliedChanges(); }
         private void DisableApplyButton()
         {
@@ -289,7 +291,6 @@ namespace AutoWikiBrowser
             private string mCategory = "";
             internal const string conUploadToUserSlashLogsToken = "$USER/Logs";
             internal const string conUploadCategoryIsJobName = "$CATEGORY";
-            private static string mUserName = "";
 
             internal Props()
                 : base()
@@ -327,8 +328,8 @@ namespace AutoWikiBrowser
 
                 if (tempLinksToLog.Count > 1 && UserName == "")
                 {
-                    throw new System.Configuration.SettingsPropertyNotFoundException(
-                        "We don't have a username");
+                    //throw new System.Configuration.SettingsPropertyNotFoundException(
+                    //    "We don't have a username");
                     // TODO: Username stuff can now get better integrated with AWB, and preferably AWBProfiles
                 }
                 return tempLinksToLog;
@@ -339,8 +340,7 @@ namespace AutoWikiBrowser
             }
             internal static string UserName
             {
-                get { return mUserName; }
-                set { mUserName = value; }
+                get { return Variables.User.Name; }
             }
             internal string Category
             {
