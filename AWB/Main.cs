@@ -738,7 +738,6 @@ namespace AutoWikiBrowser
         private Dictionary<int, int> badCiteParameters = new Dictionary<int, int>();
         private Dictionary<int, int> dupeBanerShellParameters = new Dictionary<int, int>();
         private Dictionary<int, int> unclosedTags = new Dictionary<int, int>();
-        private Dictionary<int, int> deadLinks = new Dictionary<int, int>();
         private Dictionary<int, int> ambigCiteDates = new Dictionary<int, int>();
         private List<string> UnknownWikiProjectBannerShellParameters = new List<string>();
         private List<string> UnknownMultipleIssuesParameters = new List<string>();
@@ -1075,12 +1074,6 @@ namespace AutoWikiBrowser
             }
             
             foreach(KeyValuePair<int, int> kvp in dupeBanerShellParameters)
-            {
-                if(!Errors.ContainsKey(kvp.Key))
-                    Errors.Add(kvp.Key, kvp.Value);
-            }
-            
-            foreach(KeyValuePair<int, int> kvp in deadLinks)
             {
                 if(!Errors.ContainsKey(kvp.Key))
                     Errors.Add(kvp.Key, kvp.Value);
@@ -2474,11 +2467,6 @@ window.scrollTo(0, diffTopY);
                 // http://en.wikipedia.org/wiki/Wikipedia_talk:AutoWikiBrowser/Feature_requests/Archive_5#Detect_multiple_DEFAULTSORT
                 if (WikiRegexes.Defaultsort.Matches(txtEdit.Text).Count > 1)
                     lbAlerts.Items.Add("Multiple DEFAULTSORTs found");
-
-                // http://en.wikipedia.org/wiki/Wikipedia_talk:AutoWikiBrowser/Feature_requests/Archive_5#Some_additional_edits
-                deadLinks = TheArticle.DeadLinks();
-                if (deadLinks.Count > 0)
-                    lbAlerts.Items.Add("Dead links found" + " (" + deadLinks.Count + ")");
 
                 ambigCiteDates = TheArticle.AmbiguousCiteTemplateDates();
                 if (ambigCiteDates.Count > 0)
