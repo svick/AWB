@@ -2094,7 +2094,7 @@ namespace WikiFunctions.Parse
             // http://en.wikipedia.org/wiki/Wikipedia_talk:AutoWikiBrowser/Feature_requests/Archive_5#Change_--_.28two_dashes.29_to_.E2.80.94_.28em_dash.29
             // convert two dashes to emdash if surrouned by alphanumeric characters, except convert to endash if surrounded by numbers
             if (Namespace.Determine(articleTitle) == Namespace.Mainspace)
-                articleText = SentenceClauseIncorrectMdash.Replace(articleText, m => m.Groups[1].Value + ((Regex.IsMatch(m.Groups[1].Value, @"^\d+$") && Regex.IsMatch(m.Groups[2].Value, @"^\d+$")) ? @"–" : @"—") + m.Groups[2].Value);
+                articleText = SentenceClauseIncorrectMdash.Replace(articleText, @"$1 – ");
 
             // http://en.wikipedia.org/wiki/Wikipedia_talk:AutoWikiBrowser/Feature_requests#minuses
             // replace hyphen or en-dash or emdash with Unicode minus (&minus;)
